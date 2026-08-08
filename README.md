@@ -322,3 +322,6 @@ The remaining stage is complete integration, debugging, and execution of compreh
 ## Repository Description
 
 **AXI4-Lite Slave RTL Design and SystemVerilog Verification Environment — Memory-mapped AXI4-Lite slave with FSM control, register read/write operations, WSTRB byte enables, invalid-address handling, and class-based verification.**
+
+Author
+Katta Karthikeya B.Tech – Electronics and Communication Engineering PDPM Indian Institute of Information Technology, Design and Manufacturing (IIITDM), Jabalpur
