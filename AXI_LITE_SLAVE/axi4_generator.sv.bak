@@ -1,0 +1,138 @@
+
+`timescale 1ns/1ps
+
+class axi4_lite_generator;
+
+    //==================================================
+    // Transaction Handle
+    //==================================================
+    axi4_lite_transaction tr;
+
+    //==================================================
+    // Generator -> Driver Mailbox
+    //==================================================
+    mailbox gen2drv;
+
+    //==================================================
+    // Number of Transactions
+    //==================================================
+    int num_transactions;
+
+
+    //==================================================
+    // Constructor
+    //==================================================
+    function new(mailbox gen2drv);
+
+        this.gen2drv = gen2drv;
+        num_transactions = 50;
+
+    endfunction
+
+
+    //==================================================
+    // Run
+    //==================================================
+    task run();
+
+        repeat(num_transactions)
+        begin
+
+            // Create new transaction
+            tr = new();
+
+
+            //==================================================
+            // Randomly select READ or WRITE
+            //==================================================
+
+            if ($urandom_range(0,1) == 0)
+            begin
+                tr.trans_type = axi4_lite_transaction::WRITE;
+            end
+            else
+            begin
+                tr.trans_type = axi4_lite_transaction::READ;
+            end
+
+
+            //==================================================
+            // WRITE TRANSACTION
+            //==================================================
+
+            if (tr.trans_type == axi4_lite_transaction::WRITE)
+            begin
+
+                // Select valid register address
+                case ($urandom_range(0,3))
+
+                    0: tr.addr = 32'h00000000;
+                    1: tr.addr = 32'h00000004;
+                    2: tr.addr = 32'h00000008;
+                    3: tr.addr = 32'h0000000C;
+
+                endcase
+
+
+                // Generate invalid address sometimes
+                if ($urandom_range(0,4) == 0)
+                begin
+                    tr.addr = 32'h00000020;
+                end
+
+
+                // Random write data
+                tr.data = $urandom;
+
+
+                // Random WSTRB
+                tr.strb = $urandom_range(1,15);
+
+            end
+
+
+            //==================================================
+            // READ TRANSACTION
+            //==================================================
+
+            else
+            begin
+
+                // Select valid register address
+                case ($urandom_range(0,3))
+
+                    0: tr.addr = 32'h00000000;
+                    1: tr.addr = 32'h00000004;
+                    2: tr.addr = 32'h00000008;
+                    3: tr.addr = 32'h0000000C;
+
+                endcase
+
+
+                // Generate invalid address sometimes
+                if ($urandom_range(0,4) == 0)
+                begin
+                    tr.addr = 32'h00000020;
+                end
+
+            end
+
+
+            //==================================================
+            // Display Transaction
+            //==================================================
+
+            tr.display("GENERATOR");
+
+
+            //==================================================
+            // Send Transaction to Driver
+            //==================================================
+
+            gen2drv.put(tr);
+
+        end
+
+    endtask
+
+endclass

@@ -1,0 +1,1167 @@
+`timescale 1ns/1ps
+package axi4_pkg;
+  
+
+class axi4_lite_transaction ;
+
+
+// Transaction Type
+    //==================================================
+
+    typedef enum {
+        WRITE,
+        READ
+    } trans_type_t;
+
+    trans_type_t trans_type;
+
+
+
+
+ rand bit[31:0] addr;
+ rand bit[31:0] data;
+ rand bit [3:0] strb;
+rand bit[1:0] resp;
+
+rand bit[ 31:0] rdata;
+
+  // Constructor
+    //==================================================
+
+    function new();
+
+        trans_type = WRITE;
+
+        addr = 32'h0;
+        data = 32'h0;
+        strb = 4'hF;
+
+        resp  = 2'b00;
+        rdata = 32'h0;
+
+    endfunction
+
+ //==================================================
+    // Display Transaction
+    //==================================================
+
+    function void display(string name = "TRANSACTION");
+
+        $display("--------------------------------------------");
+        $display("[%s]", name);
+
+        if (trans_type == WRITE)
+            $display("TYPE  = WRITE");
+        else
+            $display("TYPE  = READ");
+
+        $display("ADDR  = 0x%08h", addr);
+        $display("DATA  = 0x%08h", data);
+        $display("STRB  = %04b", strb);
+        $display("RDATA = 0x%08h", rdata);
+        $display("RESP  = %02b", resp);
+
+        $display("--------------------------------------------");
+
+    endfunction
+
+endclass 
+
+
+class axi4_lite_generator;
+
+    //==================================================
+    // Transaction Handle
+    //==================================================
+    axi4_lite_transaction tr;
+
+    //==================================================
+    // Generator -> Driver Mailbox
+    //==================================================
+    mailbox gen2drv;
+
+    //==================================================
+    // Number of Transactions
+    //==================================================
+    int num_transactions;
+
+
+    //==================================================
+    // Constructor
+    //==================================================
+    function new(mailbox gen2drv);
+
+        this.gen2drv = gen2drv;
+        num_transactions = 50;
+
+    endfunction
+
+
+    //==================================================
+    // Run
+    //==================================================
+    task run();
+
+        repeat(num_transactions)
+        begin
+
+            // Create new transaction
+            tr = new();
+
+
+            //==================================================
+            // Randomly select READ or WRITE
+            //==================================================
+
+            if ($urandom_range(0,1) == 0)
+            begin
+                tr.trans_type = axi4_lite_transaction::WRITE;
+            end
+            else
+            begin
+                tr.trans_type = axi4_lite_transaction::READ;
+            end
+
+
+            //==================================================
+            // WRITE TRANSACTION
+            //==================================================
+
+            if (tr.trans_type == axi4_lite_transaction::WRITE)
+            begin
+
+                // Select valid register address
+                case ($urandom_range(0,3))
+
+                    0: tr.addr = 32'h00000000;
+                    1: tr.addr = 32'h00000004;
+                    2: tr.addr = 32'h00000008;
+                    3: tr.addr = 32'h0000000C;
+
+                endcase
+
+
+                // Generate invalid address sometimes
+                if ($urandom_range(0,4) == 0)
+                begin
+                    tr.addr = 32'h00000020;
+                end
+
+                // Random write data
+                tr.data = $urandom;
+
+                // Random WSTRB
+                tr.strb = $urandom_range(1,15);
+
+            end
+
+
+            //==================================================
+            // READ TRANSACTION
+            //==================================================
+
+            else
+            begin
+
+                // Select valid register address
+                case ($urandom_range(0,3))
+
+                    0: tr.addr = 32'h00000000;
+                    1: tr.addr = 32'h00000004;
+                    2: tr.addr = 32'h00000008;
+                    3: tr.addr = 32'h0000000C;
+
+                endcase
+
+
+                // Generate invalid address sometimes
+                if ($urandom_range(0,4) == 0)
+                begin
+                    tr.addr = 32'h00000020;
+                end
+
+            end
+
+
+            //==================================================
+            // Display Transaction
+            //==================================================
+
+            tr.display("GENERATOR");
+
+            //==================================================
+            // Send Transaction to Driver
+            //==================================================
+
+            gen2drv.put(tr);
+
+        end
+
+    endtask
+
+endclass 
+
+
+class axi4_lite_driver;
+
+    // Virtual interface
+    virtual axi4_lite_if vif;
+
+    // Generator ? Driver mailbox
+    mailbox gen2drv;
+
+    // Transaction handle
+    axi4_lite_transaction tr;
+
+    // Constructor
+    function new(
+        virtual axi4_lite_if vif,
+        mailbox gen2drv
+    );
+
+        this.vif     = vif;
+        this.gen2drv = gen2drv;
+
+    endfunction
+
+//==================================================
+    // Run Driver
+    //==================================================
+
+    task run();
+
+        forever
+        begin
+
+            // Get transaction from generator
+            gen2drv.get(tr);
+
+            // Decide READ or WRITE
+            if (tr.trans_type == axi4_lite_transaction::WRITE)
+            begin
+                drive_write();
+            end
+            else
+            begin
+                drive_read();
+            end
+
+        end
+
+    endtask
+
+
+    //==================================================
+    // WRITE TRANSACTION
+    //==================================================
+
+    task drive_write();
+
+        $display("----------------------------------------");
+        $display("[DRIVER] WRITE TRANSACTION");
+        $display("Address = %08h", tr.addr);
+        $display("Data    = %08h", tr.data);
+        $display("WSTRB   = %04b", tr.strb);
+        $display("----------------------------------------");
+
+
+        //================================================
+        // WRITE ADDRESS CHANNEL
+        //================================================
+
+        @(posedge vif.ACLK);
+
+        vif.AWADDR  <= tr.addr;
+        vif.AWVALID <= 1'b1;
+
+        // Wait until slave accepts address
+        while (!vif.AWREADY)
+        begin
+            @(posedge vif.ACLK);
+        end
+
+        @(posedge vif.ACLK);
+
+        vif.AWVALID <= 1'b0;
+
+
+        //================================================
+        // WRITE DATA CHANNEL
+        //================================================
+
+        vif.WDATA  <= tr.data;
+        vif.WSTRB  <= tr.strb;
+        vif.WVALID <= 1'b1;
+
+        // Wait until slave accepts data
+        while (!vif.WREADY)
+        begin
+            @(posedge vif.ACLK);
+        end
+
+        @(posedge vif.ACLK);
+
+        vif.WVALID <= 1'b0;
+
+
+        //================================================
+        // WRITE RESPONSE CHANNEL
+        //================================================
+
+        vif.BREADY <= 1'b1;
+
+        // Wait for slave response
+        while (!vif.BVALID)
+        begin
+            @(posedge vif.ACLK);
+        end
+
+        tr.resp = vif.BRESP;
+
+        @(posedge vif.ACLK);
+
+        vif.BREADY <= 1'b0;
+
+
+        $display("[DRIVER] WRITE RESPONSE = %02b", tr.resp);
+
+    endtask
+
+
+    //==================================================
+    // READ TRANSACTION
+    //==================================================
+
+    task drive_read();
+
+        $display("----------------------------------------");
+        $display("[DRIVER] READ TRANSACTION");
+        $display("Address = %08h", tr.addr);
+        $display("----------------------------------------");
+
+
+        //================================================
+        // READ ADDRESS CHANNEL
+        //================================================
+
+        @(posedge vif.ACLK);
+
+        vif.ARADDR  <= tr.addr;
+        vif.ARVALID <= 1'b1;
+
+        // Wait until slave accepts address
+        while (!vif.ARREADY)
+        begin
+            @(posedge vif.ACLK);
+        end
+
+        @(posedge vif.ACLK);
+
+        vif.ARVALID <= 1'b0;
+
+
+        //================================================
+        // READ DATA CHANNEL
+        //================================================
+
+        vif.RREADY <= 1'b1;
+
+        // Wait for slave response
+        while (!vif.RVALID)
+        begin
+            @(posedge vif.ACLK);
+        end
+
+        tr.rdata = vif.RDATA;
+        tr.resp  = vif.RRESP;
+
+        @(posedge vif.ACLK);
+
+        vif.RREADY <= 1'b0;
+
+
+        $display("[DRIVER] READ DATA = %08h", tr.rdata);
+        $display("[DRIVER] READ RESPONSE = %02b", tr.resp);
+
+    endtask
+
+endclass
+
+
+
+class axi4_lite_monitor;
+
+    //==================================================
+    // Virtual Interface
+    //==================================================
+
+    virtual axi4_lite_if vif;
+
+
+    //==================================================
+    // Monitor -> Scoreboard Mailbox
+    //==================================================
+
+    mailbox mon2scb;
+    mailbox mon2cov;
+
+
+    //==================================================
+    // Transaction Handle
+    //==================================================
+
+    axi4_lite_transaction tr;
+
+
+    //==================================================
+    // Constructor
+    //==================================================
+
+    function new(
+    virtual axi4_lite_if vif,
+    mailbox mon2scb,
+    mailbox mon2cov
+);
+
+    this.vif     = vif;
+    this.mon2scb = mon2scb;
+    this.mon2cov = mon2cov;
+
+endfunction
+
+    //==================================================
+    // Run Monitor
+    //==================================================
+
+    task run();
+
+        forever
+        begin
+
+            // Wait for either READ or WRITE activity
+
+            @(posedge vif.ACLK);
+
+            if (vif.AWVALID && vif.AWREADY)
+            begin
+                monitor_write();
+            end
+            else if (vif.ARVALID && vif.ARREADY)
+            begin
+                monitor_read();
+            end
+
+        end
+
+    endtask
+
+
+    //==================================================
+    // Monitor WRITE
+    //==================================================
+
+    task monitor_write();
+
+        tr = new();
+
+        tr.trans_type = axi4_lite_transaction::WRITE;
+
+
+        // Capture write address
+        tr.addr = vif.AWADDR;
+
+
+        // Wait for write data handshake
+        @(posedge vif.ACLK);
+
+        while (!(vif.WVALID && vif.WREADY))
+        begin
+            @(posedge vif.ACLK);
+        end
+
+        tr.data = vif.WDATA;
+        tr.strb = vif.WSTRB;
+
+
+        // Wait for write response
+        @(posedge vif.ACLK);
+
+        while (!vif.BVALID)
+        begin
+            @(posedge vif.ACLK);
+        end
+
+        tr.resp = vif.BRESP;
+
+
+        // Send observed transaction
+        mon2scb.put(tr);
+        mon2cov.put(tr);
+
+
+        tr.display("MONITOR WRITE");
+
+    endtask
+
+
+    //==================================================
+    // Monitor READ
+    //==================================================
+
+    task monitor_read();
+
+        tr = new();
+
+        tr.trans_type = axi4_lite_transaction::READ;
+
+
+        // Capture read address
+        tr.addr = vif.ARADDR;
+
+
+        // Wait for read response
+        @(posedge vif.ACLK);
+
+        while (!vif.RVALID)
+        begin
+            @(posedge vif.ACLK);
+        end
+
+
+        // Capture read data and response
+        tr.rdata = vif.RDATA;
+        tr.resp  = vif.RRESP;
+
+
+        // Send observed transaction
+        mon2scb.put(tr);
+        mon2cov.put(tr);
+
+
+        tr.display("MONITOR READ");
+
+    endtask
+
+endclass
+
+
+
+class axi4_lite_scoreboard;
+
+    //==================================================
+    // Monitor -> Scoreboard Mailbox
+    //==================================================
+
+    mailbox mon2scb;
+
+
+    //==================================================
+    // Reference Model Registers
+    //==================================================
+
+    bit [31:0] expected_reg0;
+    bit [31:0] expected_reg1;
+    bit [31:0] expected_reg2;
+    bit [31:0] expected_reg3;
+
+
+    //==================================================
+    // Constructor
+    //==================================================
+
+    function new(mailbox mon2scb);
+
+        this.mon2scb = mon2scb;
+
+        expected_reg0 = 32'h00000000;
+        expected_reg1 = 32'h00000000;
+        expected_reg2 = 32'h00000000;
+        expected_reg3 = 32'h00000000;
+
+    endfunction
+
+
+    //==================================================
+    // Run Scoreboard
+    //==================================================
+
+    task run();
+
+        forever
+        begin
+
+            // Get transaction from monitor
+            mon2scb.get(tr);
+
+            // Check READ or WRITE
+            if (tr.trans_type == axi4_lite_transaction::WRITE)
+            begin
+                check_write();
+            end
+            else
+            begin
+                check_read();
+            end
+
+        end
+
+    endtask
+
+
+    //==================================================
+    // Transaction Handle
+    //==================================================
+
+    axi4_lite_transaction tr;
+
+
+    //==================================================
+    // WRITE CHECK
+    //==================================================
+
+    task check_write();
+
+        bit [31:0] expected_data;
+
+        case (tr.addr)
+
+            32'h00000000:
+            begin
+
+                expected_data = apply_wstrb(
+                    expected_reg0,
+                    tr.data,
+                    tr.strb
+                );
+
+                expected_reg0 = expected_data;
+
+                $display("[SCOREBOARD] REG0 WRITE PASS");
+
+            end
+
+
+            32'h00000004:
+            begin
+
+                expected_data = apply_wstrb(
+                    expected_reg1,
+                    tr.data,
+                    tr.strb
+                );
+
+                expected_reg1 = expected_data;
+
+                $display("[SCOREBOARD] REG1 WRITE PASS");
+
+            end
+
+
+            32'h00000008:
+            begin
+
+                expected_data = apply_wstrb(
+                    expected_reg2,
+                    tr.data,
+                    tr.strb
+                );
+
+                expected_reg2 = expected_data;
+
+                $display("[SCOREBOARD] REG2 WRITE PASS");
+
+            end
+
+
+            32'h0000000C:
+            begin
+
+                expected_data = apply_wstrb(
+                    expected_reg3,
+                    tr.data,
+                    tr.strb
+                );
+
+                expected_reg3 = expected_data;
+
+                $display("[SCOREBOARD] REG3 WRITE PASS");
+
+            end
+
+
+            default:
+            begin
+
+                if (tr.resp == 2'b10)
+                begin
+                    $display(
+                        "[SCOREBOARD] INVALID WRITE ADDRESS PASS"
+                    );
+                end
+                else
+                begin
+                    $display(
+                        "[SCOREBOARD] ERROR: INVALID WRITE RESPONSE"
+                    );
+                end
+
+            end
+
+        endcase
+
+    endtask
+
+
+    //==================================================
+    // READ CHECK
+    //==================================================
+
+    task check_read();
+
+        bit [31:0] expected_data;
+
+        case (tr.addr)
+
+            32'h00000000:
+            begin
+
+                expected_data = expected_reg0;
+
+                compare_read(expected_data);
+
+            end
+
+
+            32'h00000004:
+            begin
+
+                expected_data = expected_reg1;
+
+                compare_read(expected_data);
+
+            end
+
+
+            32'h00000008:
+            begin
+
+                expected_data = expected_reg2;
+
+                compare_read(expected_data);
+
+            end
+
+
+            32'h0000000C:
+            begin
+
+                expected_data = expected_reg3;
+
+                compare_read(expected_data);
+
+            end
+
+
+            default:
+            begin
+
+                if (tr.resp == 2'b10)
+                begin
+                    $display(
+                        "[SCOREBOARD] INVALID READ ADDRESS PASS"
+                    );
+                end
+                else
+                begin
+                    $display(
+                        "[SCOREBOARD] ERROR: INVALID READ RESPONSE"
+                    );
+                end
+
+            end
+
+        endcase
+
+    endtask
+
+
+    //==================================================
+    // Compare Read Data
+    //==================================================
+
+    task compare_read(input bit [31:0] expected_data);
+
+        if (tr.rdata === expected_data)
+        begin
+
+            $display(
+                "[SCOREBOARD] READ PASS | ADDR=%08h DATA=%08h",
+                tr.addr,
+                tr.rdata
+            );
+
+        end
+        else
+        begin
+
+            $display(
+                "[SCOREBOARD] READ FAIL | ADDR=%08h EXPECTED=%08h ACTUAL=%08h",
+                tr.addr,
+                expected_data,
+                tr.rdata
+            );
+
+        end
+
+    endtask
+
+
+    //==================================================
+    // WSTRB Application
+    //==================================================
+
+    function bit [31:0] apply_wstrb(
+        input bit [31:0] old_data,
+        input bit [31:0] new_data,
+        input bit [3:0] strb
+    );
+
+        bit [31:0] result;
+
+        result = old_data;
+
+        if (strb[0])
+            result[7:0] = new_data[7:0];
+
+        if (strb[1])
+            result[15:8] = new_data[15:8];
+
+        if (strb[2])
+            result[23:16] = new_data[23:16];
+
+        if (strb[3])
+            result[31:24] = new_data[31:24];
+
+        return result;
+
+    endfunction
+
+endclass
+
+class axi4_lite_coverage;
+
+    axi4_lite_transaction tr;
+
+    //==================================================
+    // Coverage
+    //==================================================
+
+    covergroup axi4_cg;
+
+        TRANS_TYPE_CP:
+        coverpoint tr.trans_type
+        {
+            bins WRITE = {axi4_lite_transaction::WRITE};
+            bins READ  = {axi4_lite_transaction::READ};
+        }
+
+        ADDR_CP:
+        coverpoint tr.addr
+        {
+            bins REG0 = {32'h00000000};
+            bins REG1 = {32'h00000004};
+            bins REG2 = {32'h00000008};
+            bins REG3 = {32'h0000000C};
+            bins INVALID = default;
+        }
+
+        WSTRB_CP:
+        coverpoint tr.strb
+        {
+            bins ALL_BYTES = {4'b1111};
+            bins BYTE0 = {4'b0001};
+            bins BYTE1 = {4'b0010};
+            bins BYTE2 = {4'b0100};
+            bins BYTE3 = {4'b1000};
+        }
+
+        RESP_CP:
+        coverpoint tr.resp
+        {
+            bins OKAY   = {2'b00};
+            bins EXOKAY = {2'b01};
+            bins SLVERR = {2'b10};
+            bins DECERR = {2'b11};
+        }
+
+        TYPE_ADDR_CROSS:
+        cross TRANS_TYPE_CP, ADDR_CP;
+
+        TYPE_RESP_CROSS:
+        cross TRANS_TYPE_CP, RESP_CP;
+
+    endgroup
+
+
+    //==================================================
+    // Constructor
+    //==================================================
+
+    function new();
+
+        axi4_cg = new();
+
+    endfunction
+
+
+    //==================================================
+    // Sample
+    //==================================================
+
+    task sample(axi4_lite_transaction t);
+
+        tr = t;
+
+        axi4_cg.sample();
+
+    endtask
+
+
+    //==================================================
+    // Report
+    //==================================================
+
+    function void report();
+
+        $display("------------------------------------");
+        $display(" AXI4-LITE FUNCTIONAL COVERAGE");
+        $display("------------------------------------");
+
+        $display("Coverage = %0.2f%%",
+                 axi4_cg.get_coverage());
+
+        $display("------------------------------------");
+
+    endfunction
+
+endclass
+
+`timescale 1ns/1ps
+
+class axi4_lite_agent;
+
+    //==================================================
+    // Virtual Interface
+    //==================================================
+
+    virtual axi4_lite_if vif;
+
+
+    //==================================================
+    // Mailboxes
+    //==================================================
+
+    mailbox gen2drv;
+    mailbox mon2scb;
+    mailbox mon2cov;
+
+
+    //==================================================
+    // Components
+    //==================================================
+
+    axi4_lite_generator  gen;
+    axi4_lite_driver     drv;
+    axi4_lite_monitor    mon;
+    axi4_lite_scoreboard scb;
+    axi4_lite_coverage   cov;
+
+
+    //==================================================
+    // Constructor
+    //==================================================
+
+    function new(virtual axi4_lite_if vif);
+
+        this.vif = vif;
+
+        // Create mailboxes
+        gen2drv = new();
+        mon2scb = new();
+        mon2cov = new();
+
+
+        // Create Generator
+        gen = new(gen2drv);
+
+
+        // Create Driver
+        drv = new(
+            vif,
+            gen2drv
+        );
+
+
+        // Create Monitor
+        mon = new(
+            vif,
+            mon2scb,mon2cov
+        );
+
+
+        // Create Scoreboard
+        scb = new(
+            mon2scb
+        );
+
+
+        // Create Coverage
+        cov = new();
+
+    endfunction
+
+
+    //==================================================
+    // Run Agent
+    //==================================================
+
+    task run();
+
+        fork
+
+            gen.run();
+
+            drv.run();
+
+            mon.run();
+
+            scb.run();
+
+            coverage_run();
+
+        join_none
+
+    endtask
+
+
+    //==================================================
+    // Coverage Process
+    //==================================================
+
+    task coverage_run();
+
+        axi4_lite_transaction tr;
+
+        forever
+        begin
+
+            mon2cov.get(tr);
+
+            cov.sample(tr);
+
+        end
+
+    endtask
+
+
+    //==================================================
+    // Report
+    //==================================================
+
+    function void report();
+
+        cov.report();
+
+    endfunction
+
+endclass
+
+class axi4_lite_env;
+
+    virtual axi4_lite_if vif;
+
+    axi4_lite_agent agent;
+
+    function new(virtual axi4_lite_if vif);
+
+        this.vif = vif;
+        agent = new(vif);
+
+    endfunction
+
+    task run();
+
+        agent.run();
+
+    endtask
+
+    function void report();
+
+        agent.report();
+
+    endfunction
+
+endclass
+
+class axi4_lite_test;
+
+    //==================================================
+    // Virtual Interface
+    //==================================================
+
+    virtual axi4_lite_if vif;
+
+
+    //==================================================
+    // Environment
+    //==================================================
+
+    axi4_lite_env env;
+
+
+    //==================================================
+    // Constructor
+    //==================================================
+
+    function new(virtual axi4_lite_if vif);
+
+        this.vif = vif;
+
+        // Create environment
+        env = new(vif);
+
+    endfunction
+
+
+    //==================================================
+    // Run Test
+    //==================================================
+
+    task run();
+
+        $display("========================================");
+        $display("       AXI4-LITE TEST STARTED");
+        $display("========================================");
+
+        // Start environment
+        env.run();
+
+
+        // Wait for generator transactions
+        #1000;
+
+
+        // Display coverage
+        env.report();
+
+
+        $display("========================================");
+        $display("       AXI4-LITE TEST COMPLETED");
+        $display("========================================");
+
+    endtask
+
+endclass
+
+endpackage
+

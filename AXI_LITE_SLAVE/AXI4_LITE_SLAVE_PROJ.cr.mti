@@ -1,0 +1,32 @@
+C:/VLSI_DISCORD/ALL_DOMAIN_PROJ/AXI_LITE_SLAVE/axi4_generator.sv {1 {vlog -work work -sv -stats=none {C:\VLSI_DISCORD\ALL_DOMAIN_PROJ\AXI_LITE_SLAVE\axi4_generator.sv}
+Model Technology ModelSim - Intel FPGA Edition vlog 10.5b Compiler 2016.10 Oct  5 2016
+
+} {} {}} C:/VLSI_DISCORD/ALL_DOMAIN_PROJ/AXI_LITE_SLAVE/AXI4_LITE_SLAVE.sv {1 {vlog -work work -sv -stats=none C:/VLSI_DISCORD/ALL_DOMAIN_PROJ/AXI_LITE_SLAVE/AXI4_LITE_SLAVE.sv
+Model Technology ModelSim - Intel FPGA Edition vlog 10.5b Compiler 2016.10 Oct  5 2016
+-- Compiling module axi4_lite_slave
+
+Top level modules:
+	axi4_lite_slave
+
+} {} {}} C:/VLSI_DISCORD/ALL_DOMAIN_PROJ/AXI_LITE_SLAVE/axi4_interface.sv {1 {vlog -work work -sv -stats=none {C:\VLSI_DISCORD\ALL_DOMAIN_PROJ\AXI_LITE_SLAVE\axi4_interface.sv}
+Model Technology ModelSim - Intel FPGA Edition vlog 10.5b Compiler 2016.10 Oct  5 2016
+-- Compiling interface axi4_lite_if
+
+Top level modules:
+	--none--
+
+} {} {}} C:/VLSI_DISCORD/ALL_DOMAIN_PROJ/AXI_LITE_SLAVE/axi4_pkg.sv {1 {vlog -work work -sv -stats=none {C:\VLSI_DISCORD\ALL_DOMAIN_PROJ\AXI_LITE_SLAVE\axi4_pkg.sv}
+Model Technology ModelSim - Intel FPGA Edition vlog 10.5b Compiler 2016.10 Oct  5 2016
+-- Compiling package axi4_pkg
+
+Top level modules:
+	--none--
+
+} {} {}} C:/VLSI_DISCORD/ALL_DOMAIN_PROJ/AXI_LITE_SLAVE/axi4_transaction.sv {2 {vlog -work work -sv -stats=none {C:\VLSI_DISCORD\ALL_DOMAIN_PROJ\AXI_LITE_SLAVE\axi4_transaction.sv}
+Model Technology ModelSim - Intel FPGA Edition vlog 10.5b Compiler 2016.10 Oct  5 2016
+** Warning: C:\VLSI_DISCORD\ALL_DOMAIN_PROJ\AXI_LITE_SLAVE\axi4_transaction.sv(1): (vlog-13233) Design unit "axi4_transaction_sv_unit" already exists and will be overwritten. Overwriting SystemVerilog $unit with different source files.
+
+Top level modules:
+	--none--
+
+} {} {}}
