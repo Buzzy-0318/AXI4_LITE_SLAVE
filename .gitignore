@@ -1,0 +1,67 @@
+# ==========================================
+# ModelSim / QuestaSim Generated Files
+# ==========================================
+
+# Compiled simulation library
+work/
+transcript
+vsim.wlf
+*.wlf
+
+# ModelSim generated files
+modelsim.ini
+*.mpf
+*.mti
+*.bak
+
+# Compilation / simulation logs
+*.log
+*.jou
+
+# Waveform files
+*.vcd
+*.vpd
+
+# Coverage databases
+*.ucdb
+*.acdb
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# ==========================================
+# IDE / Editor Files
+# ==========================================
+
+.vscode/
+.idea/
+
+# ==========================================
+# OS Generated Files
+# ==========================================
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# macOS
+.DS_Store
+
+# ==========================================
+# Build / Generated Files
+# ==========================================
+
+*.o
+*.out
+*.exe
+*.dll
+
+# ==========================================
+# Backup Files
+# ==========================================
+
+*~
+*.bak
+*.backup
